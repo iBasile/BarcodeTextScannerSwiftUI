@@ -11,6 +11,7 @@ import VisionKit
 struct ContentView: View {
     
     @EnvironmentObject var vm: AppViewModel
+    @State private var showSettings = false
     
     var body: some View {
         switch vm.dataScannerAccessStatus {
@@ -45,11 +46,41 @@ struct ContentView: View {
                     controller.view.backgroundColor = .clear
                 }
         }
+        .onChange(of: vm.recognizedItem) { newItem in
+            if let item = newItem {
+                switch item {
+                case .barcode(let barcode):
+                    if let code = barcode.payloadStringValue {
+                        vm.handleScannedCode(code)
+                    }
+                @unknown default:
+                    break
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(vm)
+        }
     }
     
     private var headerView: some View {
         VStack {
-            Text(vm.headerText).padding(.top)
+            HStack {
+                Text(vm.headerText)
+                    .font(.headline)
+                Spacer()
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gear")
+                        .font(.title2)
+                }
+            }
+            .padding(.top)
+            
+            if vm.isLoading {
+                ProgressView()
+                    .padding(.top, 8)
+            }
         }.padding(.horizontal)
     }
     
@@ -58,17 +89,62 @@ struct ContentView: View {
             headerView
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
-                    if let item = vm.recognizedItem {
-                        switch item {
-                        case .barcode(let barcode):
-                            Text(barcode.payloadStringValue ?? "Unknown barcode")
-                            
-                        @unknown default:
-                            Text("Unknown")
+                    if let code = vm.scannedCode {
+                        HStack {
+                            Text("Code: \(code)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    if !vm.scanHistory.isEmpty {
+                        Text("Historique")
+                            .font(.headline)
+                            .padding(.top, 8)
+                        
+                        ForEach(vm.scanHistory) { entry in
+                            HStack {
+                                Image(systemName: entry.success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(entry.success ? .green : .red)
+                                VStack(alignment: .leading) {
+                                    Text(entry.code)
+                                        .font(.caption)
+                                    Text(entry.message)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
                     }
                 }
                 .padding()
+            }
+        }
+    }
+}
+
+struct SettingsView: View {
+    @EnvironmentObject var vm: AppViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Configuration serveur")) {
+                    TextField("Adresse IP", text: $vm.serverIP)
+                        .keyboardType(.numbersAndPunctuation)
+                    TextField("Port", text: $vm.serverPort)
+                        .keyboardType(.numberPad)
+                }
+            }
+            .navigationTitle("Réglages")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("OK") {
+                        dismiss()
+                    }
+                }
             }
         }
     }
