@@ -11,15 +11,13 @@ import VisionKit
 
 struct DataScannerView: UIViewControllerRepresentable {
     
-    @Binding var recognizedItems: [RecognizedItem]
-    let recognizedDataType: DataScannerViewController.RecognizedDataType
-    let recognizesMultipleItems: Bool
+    @Binding var recognizedItem: RecognizedItem?
     
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let vc = DataScannerViewController(
-            recognizedDataTypes: [recognizedDataType],
+            recognizedDataTypes: [.barcode()],
             qualityLevel: .balanced,
-            recognizesMultipleItems: recognizesMultipleItems,
+            recognizesMultipleItems: false,
             isGuidanceEnabled: true,
             isHighlightingEnabled: true
         )
@@ -32,7 +30,7 @@ struct DataScannerView: UIViewControllerRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(recognizedItems: $recognizedItems)
+        Coordinator(recognizedItem: $recognizedItem)
     }
     
     static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
@@ -42,10 +40,10 @@ struct DataScannerView: UIViewControllerRepresentable {
     
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
         
-        @Binding var recognizedItems: [RecognizedItem]
+        @Binding var recognizedItem: RecognizedItem?
 
-        init(recognizedItems: Binding<[RecognizedItem]>) {
-            self._recognizedItems = recognizedItems
+        init(recognizedItem: Binding<RecognizedItem?>) {
+            self._recognizedItem = recognizedItem
         }
         
         func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
@@ -54,13 +52,16 @@ struct DataScannerView: UIViewControllerRepresentable {
         
         func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            recognizedItems.append(contentsOf: addedItems)
+            if let firstItem = addedItems.first {
+                recognizedItem = firstItem
+            }
             print("didAddItems \(addedItems)")
         }
         
         func dataScanner(_ dataScanner: DataScannerViewController, didRemove removedItems: [RecognizedItem], allItems: [RecognizedItem]) {
-            self.recognizedItems = recognizedItems.filter { item in
-                !removedItems.contains(where: {$0.id == item.id })
+            if let currentItem = recognizedItem,
+               removedItems.contains(where: { $0.id == currentItem.id }) {
+                recognizedItem = nil
             }
             print("didRemovedItems \(removedItems)")
         }
